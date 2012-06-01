@@ -170,7 +170,21 @@
               // then remove changes for this attribute.
               if (!_.isEqual(previousValue, val) || (hasCurrentValue != hasPreviousValue)) {
                 setNested(this.changed, attr, val);
-                if (!options.silent) setNested(this._pending, attr, true);
+                if (!options.silent) {
+                    setNested(this._pending, attr, true);
+                    // Also record the change for all the ancestor path segments
+                    // just like we do for the _pending attributes. Use a dedicated
+                    // store so we can track the ancestors by path:value and get
+                    // rod of duplicates as we go.  The _ancestors list is then
+                    // processed within the 'change' implementation below,
+                    // right after _pending is consumed
+                    this._ancestors = this._ancestors || {};
+                    var ancestor = attr.split('.').slice(0,-1).join('.');
+                    while(ancestor.length) {
+                        this._ancestors[ancestor] = getNested(now, ancestor);
+                        ancestor = ancestor.split('.').slice(0,-1).join('.');
+                    }
+                }
               } else {
                 deleteNested(this.changed, attr);
                 deleteNested(this._pending, attr);
@@ -213,6 +227,12 @@
               if (getNested(this._pending, attr) || getNested(this._silent, attr)) continue;
               deleteNested(this.change, attr);
             }
+            // Also trigger the change in the ancestor path segment
+            for (var attr in this._ancestors) {
+              this.trigger('change:' + attr, this, this.get(attr), options);
+            }
+            // Then cleanup the _ancestors list
+            this._ancestors = {};
             this._previousAttributes = _.clone(this.attributes);
           }
 
